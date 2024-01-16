@@ -1,0 +1,172 @@
+--그룹함수 - 행에대한 기초통계 값
+--SUM, AVG, MAX, MIN, COUNT - 전부 NULL이 아닌데이터에 대해서 통계를 구합니다.
+SELECT SUM(SALARY), AVG(SALARY), MAX(SALARY), MIN(SALARY), COUNT(SALARY) FROM EMPLOYEES;
+
+--MAX, MIN은 문자열이나 날짜에도 적용이 됩니다.
+SELECT MIN(HIRE_DATE), MAX(HIRE_DATE) FROM EMPLOYEES;
+SELECT MIN(FIRST_NAME), MAX(FIRST_NAME) FROM EMPLOYEES;
+
+-- COUNT() 두가지 사용방법
+SELECT COUNT(COMMISSION_PCT) FROM EMPLOYEES; -- NULL이 아닌 데이터 기준
+SELECT COUNT(*) FROM EMPLOYEES; -- 전체행수(NULL포함)
+
+-- 80인 부서사람들의 COMMISSION통계값
+SELECT MIN(COMMISSION_PCT), MAX(COMMISSION_PCT), SUM(COMMISSION_PCT) FROM EMPLOYEES WHERE DEPARTMENT_ID = 80;
+
+-- 주의할점: 그룹함수는 일반컬럼과 동시에 사용이 불가능
+SELECT FIRST_NAME, AVG(SALARY) FROM EMPLOYEES;
+
+-- 그룹함수 뒤에 OVER() 를 붙이면 전체행 출력이 됩니다.
+SELECT FIRST_NAME, AVG(SALARY) OVER(), MAX(SALARY) OVER(), COUNT(*) OVER() FROM EMPLOYEES;
+
+---------------------------------------------------------------------------------------------------------------
+-- GROUP BY절 - 컬럼기준으로 그룹핑
+SELECT DEPARTMENT_ID FROM EMPLOYEES GROUP BY DEPARTMENT_ID;
+
+SELECT DEPARTMENT_ID, SUM(SALARY), AVG(SALARY), MAX(SALARY), MIN(SALARY), COUNT(*)
+FROM EMPLOYEES 
+GROUP BY DEPARTMENT_ID; -- 그룹함수를 함께 사용할 수 있습니다
+
+--주의할점 - GROUP BY지정되지 않은 컬럼은 SELECT절에 사용할수 없음
+SELECT DEPARTMENT_ID, FIRST_NAME
+FROM EMPLOYEES
+GROUP BY DEPARTMENT_ID;
+
+--2개 이상의 그룹화 (하위 그룹)
+SELECT DEPARTMENT_ID, JOB_ID, SUM(SALARY), COUNT(*)
+FROM EMPLOYEES
+GROUP BY DEPARTMENT_ID, JOB_ID
+ORDER BY DEPARTMENT_ID;
+--COUNT(*) OVER() 을 사용하면, 총 행의 수를 같이 출력할 수 있습니다.
+SELECT DEPARTMENT_ID, JOB_ID, COUNT(*), COUNT(*) OVER()
+FROM EMPLOYEES
+GROUP BY DEPARTMENT_ID, JOB_ID
+ORDER BY DEPARTMENT_ID;
+
+--WHERE에는 그룹함수 조건을 사용할 수 없습니다. (단, 일반조건은 가능)
+SELECT DEPARTMENT_ID, SUM(SALARY), AVG(SALARY)
+FROM EMPLOYEES
+WHERE SUM(SALARY) >= 100000 -- 그룹함수의 조건을 쓰는 구문은 HAVING이라고 있어!
+GROUP BY DEPARTMENT_ID
+ORDER BY DEPARTMENT_ID;
+
+--------------------------------------------------------------------------------
+--HAVING - 그룹함수의 조건
+--WHERE - 일반조건
+SELECT DEPARTMENT_ID, SUM(SALARY), COUNT(*)
+FROM EMPLOYEES
+GROUP BY DEPARTMENT_ID
+HAVING SUM(SALARY) >= 100000 AND COUNT(*) >= 40;
+--
+SELECT DEPARTMENT_ID, JOB_ID, AVG(SALARY)
+FROM EMPLOYEES
+WHERE JOB_ID NOT LIKE 'SA%'
+GROUP BY DEPARTMENT_ID, JOB_ID
+HAVING AVG(SALARY) >= 5000;
+
+--부서아이디가 NULL이 아니고, 입사일은 05년도 인 사람들의 부서 급여평균과, 급여합계를 평균기준 내림차순
+--조건은 평균이 10000이상인 데이터만.
+SELECT DEPARTMENT_ID, SUM(SALARY) AS 합계, AVG(SALARY) AS 평균
+FROM EMPLOYEES
+WHERE DEPARTMENT_ID IS NOT NULL AND HIRE_DATE LIKE '05%'
+GROUP BY DEPARTMENT_ID
+HAVING AVG(SALARY) >= 10000
+ORDER BY 평균 DESC;
+
+--------------------------------------------------------------------------------
+--요고는 시험에 많이 나옴
+--ROLLUP - GROUP BY와 함께 사용되고, 상위그룹의 합계, 평균를 구합니다.
+SELECT DEPARTMENT_ID, AVG(SALARY), SUM(SALARY)
+FROM EMPLOYEES
+GROUP BY ROLLUP(DEPARTMENT_ID) -- 부서 전체합계, 전체평균
+ORDER BY DEPARTMENT_ID;
+--
+SELECT DEPARTMENT_ID, JOB_ID, AVG(SALARY), SUM(SALARY)
+FROM EMPLOYEES
+GROUP BY ROLLUP(DEPARTMENT_ID, JOB_ID)
+ORDER BY DEPARTMENT_ID, JOB_ID; -- 부서별 합계, 평균, 전체합계, 전체평균
+
+-- CUBE - 롤업에 의해서 구해진 값 + 서브그룹 통계 추가됨
+SELECT DEPARTMENT_ID, JOB_ID, AVG(SALARY), SUM(SALARY)
+FROM EMPLOYEES
+GROUP BY CUBE(DEPARTMENT_ID, JOB_ID)
+ORDER BY DEPARTMENT_ID, JOB_ID;
+
+--GROUPING함수 - 그룹절로 만들어진 경우는 0을반환, 롤업OR큐브로 만들어진 행인 경우에는 1을 반환
+SELECT DECODE( GROUPING(DEPARTMENT_ID), 1, '총계', DEPARTMENT_ID),
+       DECODE( GROUPING(JOB_ID), 1, '소계', JOB_ID  ), 
+       AVG(SALARY),
+       GROUPING(DEPARTMENT_ID),
+       GROUPING(JOB_ID)
+FROM EMPLOYEES
+GROUP BY ROLLUP(DEPARTMENT_ID, JOB_ID)
+ORDER BY DEPARTMENT_ID;
+--------------------------------------------------------------------------------
+--연습문제
+--문제 1.
+--사원 테이블에서 JOB_ID별 사원 수를 구하세요.
+--사원 테이블에서 JOB_ID별 월급의 평균을 구하세요. 월급의 평균 순으로 내림차순 정렬하세요
+SELECT JOB_ID, 
+       COUNT(*) AS 사원수,
+       AVG(SALARY) AS 급여평균
+FROM EMPLOYEES
+GROUP BY JOB_ID
+ORDER BY 급여평균 DESC;
+--문제 2.
+--사원 테이블에서 입사 년도 별 사원 수를 구하세요.
+SELECT TO_CHAR(HIRE_DATE, 'YY') AS 입사년도, 
+       COUNT(*) AS 사원수
+FROM EMPLOYEES
+GROUP BY TO_CHAR(HIRE_DATE, 'YY');
+--문제 3.
+--급여가 1000 이상인 사원들의 부서별 평균 급여를 출력하세요. 단 부서 평균 급여가 2000이상인 부서만 출력
+SELECT DEPARTMENT_ID, 
+       AVG(SALARY)
+FROM EMPLOYEES
+WHERE SALARY >= 1000
+GROUP BY DEPARTMENT_ID
+HAVING AVG(SALARY) >= 2000;
+--문제 4.
+--사원 테이블에서 commission_pct(커미션) 컬럼이 null이 아닌 사람들의
+--department_id(부서별) salary(월급)의 평균, 합계, count를 구합니다.
+--조건 1) 월급의 평균은 커미션을 적용시킨 월급입니다.
+--조건 2) 평균은 소수 2째 자리에서 절삭 하세요.
+
+SELECT DEPARTMENT_ID,
+       TRUNC( AVG(SALARY + SALARY * COMMISSION_PCT), 2 ),
+       SUM(SALARY + SALARY * COMMISSION_PCT),
+       COUNT(SALARY)
+FROM EMPLOYEES
+WHERE COMMISSION_PCT IS NOT NULL
+GROUP BY DEPARTMENT_ID;
+
+--5
+SELECT DECODE( GROUPING(JOB_ID ), 1, '합계', JOB_ID ) AS JOB_ID, 
+       SUM(SALARY)
+FROM EMPLOYEES
+GROUP BY ROLLUP(JOB_ID);
+--6
+SELECT DECODE(GROUPING(DEPARTMENT_ID), 1 ,'합계', DEPARTMENT_ID ) AS DEPARTMENT_ID,
+       DECODE(GROUPING(JOB_ID), 1, '소계', JOB_ID  ) JOB_ID,
+       COUNT(*) TOTAL,
+       SUM(SALARY) AS SUM
+FROM EMPLOYEES
+GROUP BY ROLLUP(DEPARTMENT_ID, JOB_ID)
+ORDER BY SUM;
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
